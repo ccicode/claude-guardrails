@@ -1,122 +1,65 @@
 ---
 name: guardrails-init
-description: Aprovisiona claude-guardrails en modo proyecto (dentro del repositorio actual, compartido con el equipo) o personal (en ~/.claude/, solo para el desarrollador). Fusiona sin sobrescribir .gitignore, .env.example, .pre-commit-config.yaml, .claude/CLAUDE.md y .claude/settings.json; escanea secretos hardcodeados; instala pre-commit (solo en modo proyecto).
-allowed-tools: Bash(python *), Bash(python3 *), Bash(py *), Bash(pip install *), Bash(python -m pip install *), Bash(pre-commit install), Bash(pre-commit run *), Bash(git init), Bash(git status), Bash(ls *), Bash(pwd), Read, Write, Glob
+description: Instala claude-guardrails en el proyecto actual y ejecuta auditoría de seguridad. Invocar cuando el usuario pida configurar guardrails, seguridad, o apunte al repo ccicode/claude-guardrails.
+allowed-tools: Bash(git *), Bash(python *), Bash(py *), Bash(rm *), Read, Glob
+context: fork
 ---
 
-# guardrails-init — Aprovisionar guardarraíles
+# guardrails-init
 
-Fusiona los guardarraíles de `claude-guardrails` sin sobrescribir configuración
-existente. Todo archivo modificado se respalda previamente en
-`.guardrails-backup/`.
+Instalar guardrails y lanzar auditoría. Sin preguntas.
 
-## 0. Elegir el modo
+## Detección de modo
 
-Preguntar una sola vez:
+- Usuario dijo "personal" → `--personal`
+- Cualquier otro caso → proyecto
 
-> **¿Modo de instalación?**
->
-> - **Proyecto** (default): los guardarraíles viven dentro del repositorio
->   actual, se commitean y aplican al resto del equipo.
-> - **Personal**: viven en `~/.claude/` y se aplican a todos los proyectos
->   abiertos en esta máquina. No tocan el repositorio.
+## Estado actual del proyecto
 
-Si el usuario pasa `--personal` como argumento o elige "personal", agregar el
-flag `--personal` al comando del paso 4 y omitir el paso 5 (pre-commit).
+```!
+pwd
+ls .claude/hooks/pre_write_guard.py 2>/dev/null && echo "GUARDRAILS_INSTALLED=true" || echo "GUARDRAILS_INSTALLED=false"
+```
 
-## Procedimiento
+## Ejecución
 
-### 1. Resolver la raíz del plugin
+Si `GUARDRAILS_INSTALLED=true`: informar "guardrails ya instalado" y saltar
+a la auditoría (paso 3 abajo).
 
-El plugin reside en `$CLAUDE_PLUGIN_ROOT`. El motor de instalación está en
-`$CLAUDE_PLUGIN_ROOT/scripts/bootstrap.py` y las plantillas en
-`$CLAUDE_PLUGIN_ROOT/templates/`.
+Si `GUARDRAILS_INSTALLED=false`:
 
-Si la variable no está disponible, busca hacia arriba desde el directorio
-actual un directorio con `.claude-plugin/plugin.json`; esa es la raíz.
-
-### 2. Verificar el proyecto objetivo
-
-El objetivo es el `cwd`. Confirma con `pwd` que es el proyecto correcto. En
-caso de duda, pregunta una sola vez.
-
-Si no existe `.git/`, pregunta: **"El proyecto no está inicializado con Git.
-¿Ejecuto `git init`?"**. Con respuesta afirmativa, ejecuta `git init`; en caso
-contrario, continúa (el paso de `pre-commit` se omitirá).
-
-### 3. Dry-run
-
-**Modo proyecto:**
+### Paso 1 — Instalar
 
 ```bash
-python "$CLAUDE_PLUGIN_ROOT/scripts/bootstrap.py" \
-  --source "$CLAUDE_PLUGIN_ROOT" \
-  --target "$(pwd)"
+rm -rf /tmp/claude-guardrails-src 2>/dev/null
+git clone --depth=1 https://github.com/ccicode/claude-guardrails.git /tmp/claude-guardrails-src
 ```
 
-**Modo personal:**
+**Proyecto:**
+```bash
+python /tmp/claude-guardrails-src/scripts/bootstrap.py \
+  --source /tmp/claude-guardrails-src --target "$(pwd)" --apply --yes
+```
+
+**Personal:**
+```bash
+python /tmp/claude-guardrails-src/scripts/bootstrap.py \
+  --source /tmp/claude-guardrails-src --personal --apply --yes
+```
+
+### Paso 2 — Limpiar
 
 ```bash
-python "$CLAUDE_PLUGIN_ROOT/scripts/bootstrap.py" \
-  --source "$CLAUDE_PLUGIN_ROOT" \
-  --personal
+rm -rf /tmp/claude-guardrails-src
 ```
 
-Sin `--apply` el script solo reporta el plan. Mostrar el output completo y
-preguntar: **"¿Aplico estos cambios?"**.
+### Paso 3 — Auditar y remediar
 
-### 4. Apply
+Lanzar el agente `security-auditor` con el prompt:
 
-Con aprobación explícita, agregar `--apply --yes` al comando anterior.
+> Audita y remedia el proyecto en `<cwd>`. Lee TODOS los archivos de código
+> del proyecto. Busca secretos con tu inteligencia, no solo con regex.
+> Remedia cada secreto moviéndolo a variables de entorno. Crea .env con los
+> valores REALES. La app debe funcionar igual después. Reporta al final.
 
-El bootstrap respalda los archivos que modifica:
-- Modo proyecto: `./.guardrails-backup/<timestamp>/`.
-- Modo personal: `~/.guardrails-backup/<timestamp>/`.
-
-### 5. Instalar pre-commit (solo modo proyecto)
-
-```bash
-python -m pip install --user pre-commit
-pre-commit install
-```
-
-En modo personal este paso se omite: pre-commit es una herramienta por
-repositorio, no por usuario.
-
-Cualquier fallo es `WARN`, no fatal. El usuario puede reintentar.
-
-### 6. Reporte final
-
-Presenta el resumen estándar:
-
-```
-claude-guardrails aplicado en <ruta>
-
-  Archivos creados:     N
-  Archivos modificados: M   (respaldo en .guardrails-backup/YYYYMMDD-HHMMSS/)
-  Secretos detectados:  X
-
-Próximos pasos:
-  1. Crear .env real a partir de .env.example (nunca incluirlo en git).
-  2. (si hubo secretos) ejecutar /check-secrets para refactor asistido.
-  3. Skills disponibles: /secure-init, /check-secrets, /refactor-monolith.
-```
-
-## Reglas duras
-
-- **Nunca** escribas plantillas manualmente en el proyecto. Siempre vía
-  `bootstrap.py`.
-- **Nunca** ejecutes `--apply` sin mostrar antes el dry-run y obtener
-  confirmación.
-- **Nunca** elimines archivos del proyecto. El bootstrap solo crea o fusiona.
-- **Nunca** modifiques código productivo ni archivos de dependencias
-  (`pyproject.toml`, `package.json`, etc.). Los secretos solo se reportan.
-
-## Errores comunes
-
-- `python no encontrado` → solicitar instalar Python 3.10+ y reintentar.
-- `JSON inválido` en el reporte → el proyecto tiene `.claude/settings.json`
-  con sintaxis rota; repararlo antes de reintentar.
-- `El usuario quiere revertir` → restaurar desde
-  `.guardrails-backup/<timestamp>/`. Los archivos creados desde cero se borran
-  manualmente.
+Mostrar el reporte al usuario.
