@@ -1,0 +1,214 @@
+# =============================================================================
+# .gitignore — Plantilla base para proyectos Python, Node y frontend
+# =============================================================================
+# Este archivo indica a Git qué archivos no deben rastrearse. Si una línea
+# resulta poco clara, no eliminarla sin consulta: probablemente proteja un
+# secreto, un binario pesado o estado local.
+# =============================================================================
+
+
+# -----------------------------------------------------------------------------
+# Secretos
+# -----------------------------------------------------------------------------
+# Los archivos `.env` contienen credenciales privadas. Cualquier commit que
+# los incluya queda en el historial aunque se borren posteriormente.
+
+.env
+.env.*
+!.env.example
+!.env.sample
+!.env.template
+
+# Certificados y llaves privadas (SSH, SSL, JWT, etc.)
+*.pem
+*.key
+*.cer
+*.crt
+*.p12
+*.pfx
+id_rsa
+id_rsa.*
+id_ed25519
+id_ed25519.*
+
+# Credenciales de servicios (Google, AWS, Firebase, etc.)
+*credentials*.json
+*client_secret*.json
+*service_account*.json
+*serviceaccount*.json
+.aws/
+.gcloud/
+
+# Configuración local sensible
+secrets/
+secret/
+private/
+config/local.*
+config/*.local.*
+*.secret
+*.secrets
+
+
+# -----------------------------------------------------------------------------
+# Python
+# -----------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+.venv/
+venv/
+env/
+ENV/
+.python-version
+
+dist/
+build/
+*.egg-info/
+*.egg
+.eggs/
+wheels/
+pip-log.txt
+pip-delete-this-directory.txt
+
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.tox/
+.coverage
+.coverage.*
+htmlcov/
+.hypothesis/
+.nox/
+coverage.xml
+*.cover
+
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+
+# -----------------------------------------------------------------------------
+# Node / JavaScript / TypeScript
+# -----------------------------------------------------------------------------
+node_modules/
+jspm_packages/
+bower_components/
+
+.next/
+.nuxt/
+.svelte-kit/
+.astro/
+.output/
+.vercel/
+.netlify/
+.turbo/
+.parcel-cache/
+.cache/
+dist/
+build/
+out/
+
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Lockfiles opcionales (descomentar para no rastrearlos)
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
+
+
+# -----------------------------------------------------------------------------
+# IDEs y editores — configuración personal por desarrollador
+# -----------------------------------------------------------------------------
+.vscode/settings.json
+.vscode/launch.json
+.vscode/tasks.json
+.vscode/*.code-workspace
+!.vscode/extensions.json
+
+.idea/
+*.iml
+*.iws
+*.ipr
+
+*.sublime-workspace
+*.sublime-project
+*.swp
+*.swo
+*~
+.netrwhist
+
+
+# -----------------------------------------------------------------------------
+# Sistemas operativos
+# -----------------------------------------------------------------------------
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+Desktop.ini
+desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# Linux
+*~
+.directory
+.Trash-*
+
+
+# -----------------------------------------------------------------------------
+# Claude Code — estado local del asistente
+# -----------------------------------------------------------------------------
+.claude/settings.local.json
+.claude/.session/
+.claude/cache/
+.claude/logs/
+
+
+# -----------------------------------------------------------------------------
+# Bases de datos y archivos grandes locales
+# -----------------------------------------------------------------------------
+*.sqlite
+*.sqlite3
+*.db
+*.db-journal
+*.dump
+*.sql.gz
+
+uploads/
+tmp/
+temp/
+*.tmp
+*.bak
+*.backup
+*.old
+
+
+# -----------------------------------------------------------------------------
+# Docker y despliegue
+# -----------------------------------------------------------------------------
+docker-compose.override.yml
+docker-compose.override.yaml
+.docker/
+
+
+# -----------------------------------------------------------------------------
+# claude-guardrails — respaldos generados por bootstrap.py
+# -----------------------------------------------------------------------------
+.guardrails-backup/

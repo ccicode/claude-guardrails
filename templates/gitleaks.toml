@@ -1,0 +1,107 @@
+# =============================================================================
+# .gitleaks.toml — Configuración del escáner de secretos Gitleaks
+# =============================================================================
+#
+# Gitleaks escanea archivos e historial de Git en busca de patrones que
+# correspondan a secretos (API keys, JWT, contraseñas, claves privadas).
+#
+# Esta configuración:
+#   - Hereda todas las reglas por defecto de Gitleaks (`extend.useDefault`).
+#   - Añade una allowlist propia con placeholders y rutas habituales de
+#     ejemplo para reducir falsos positivos.
+#
+# Ejecución manual:
+#   gitleaks detect --source . --config .gitleaks.toml --verbose
+#
+# Referencia: https://github.com/gitleaks/gitleaks#configuration
+# =============================================================================
+
+[extend]
+useDefault = true
+
+
+# -----------------------------------------------------------------------------
+# Allowlist global — patrones que no corresponden a secretos reales
+# -----------------------------------------------------------------------------
+[allowlist]
+description = "Allowlist: placeholders, ejemplos y archivos de plantilla"
+
+paths = [
+    '''(.*?)(jpg|jpeg|png|gif|svg|ico|pdf|zip|tar|gz)$''',
+    '''\.env\.example$''',
+    '''\.env\.sample$''',
+    '''\.env\.template$''',
+    '''\.gitleaks\.toml$''',
+    '''(^|/)package-lock\.json$''',
+    '''(^|/)yarn\.lock$''',
+    '''(^|/)pnpm-lock\.yaml$''',
+    '''(^|/)poetry\.lock$''',
+    '''(^|/)Pipfile\.lock$''',
+    '''(^|/)uv\.lock$''',
+    '''(^|/)go\.sum$''',
+    '''(^|/)node_modules/''',
+    '''(^|/)vendor/''',
+    '''(^|/)dist/''',
+    '''(^|/)build/''',
+    '''(^|/)__snapshots__/''',
+    '''(^|/)tests?/fixtures/''',
+    '''(^|/)tests?/data/''',
+]
+
+regexes = [
+    # Placeholders explícitos más comunes.
+    '''(?i)your[-_]?(api[-_]?)?key[-_]?here''',
+    '''(?i)your[-_]?secret[-_]?here''',
+    '''(?i)your[-_]?token[-_]?here''',
+    '''(?i)example[-_]?(api[-_]?)?key''',
+    '''(?i)change[-_]?me''',
+    '''(?i)changeme''',
+    '''(?i)replace[-_]?with[-_]?real''',
+    '''(?i)placeholder''',
+    '''(?i)dummy[-_]?(key|token|secret)''',
+    '''(?i)fake[-_]?(key|token|secret)''',
+    '''(?i)test[-_]?(key|token|secret)''',
+    '''(?i)sample[-_]?(key|token|secret)''',
+
+    # Strings "xxxxxxxx..." usados en plantillas.
+    '''x{8,}''',
+    '''X{8,}''',
+
+    # Valores clásicos de ejemplo.
+    '''foo(bar)?''',
+    '''(?i)lorem[-_]?ipsum''',
+
+    # UUIDs nulos / de documentación.
+    '''00000000-0000-0000-0000-000000000000''',
+    '''11111111-1111-1111-1111-111111111111''',
+    '''deadbeef-dead-beef-dead-beefdeadbeef''',
+
+    # SECRET_KEY por defecto que emite Django en proyectos nuevos.
+    '''django-insecure-''',
+
+    # Credenciales "user:password" en URLs de ejemplo.
+    '''(?i)(user|usuario):(password|contrasena)@''',
+    '''(?i)postgres(ql)?://user:password@''',
+    '''(?i)mysql://user:password@''',
+    '''(?i)mongodb://user:password@''',
+
+    # Claves de prueba documentadas (no válidas en producción).
+    '''sk_test_[a-zA-Z0-9]+''',
+    '''pk_test_[a-zA-Z0-9]+''',
+]
+
+# Para ignorar commits históricos específicos (por ejemplo, tras limpieza
+# de un secreto en el pasado) descomentar y listar los SHA:
+# commits = ["abc1234", "def5678"]
+
+stopwords = [
+    "example",
+    "ejemplo",
+    "sample",
+    "test",
+    "dummy",
+    "fake",
+    "placeholder",
+    "your",
+    "mock",
+]

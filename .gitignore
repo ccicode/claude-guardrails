@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+.claude/settings.local.json
+.guardrails-backup/
+.vscode/settings.json
+.idea/
+Thumbs.db
+.DS_Store

@@ -1,0 +1,13 @@
+{
+  "name": "claude-guardrails",
+  "owner": {
+    "name": "ccicode"
+  },
+  "plugins": [
+    {
+      "name": "guardrails",
+      "source": "./",
+      "description": "Guardarraíles de seguridad para Claude Code. Bloquea secretos en escrituras y en commits, impone estructura modular, instala pre-commit con gitleaks. Instalación no destructiva sobre cualquier proyecto."
+    }
+  ]
+}

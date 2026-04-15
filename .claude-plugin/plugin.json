@@ -1,0 +1,9 @@
+{
+  "name": "guardrails",
+  "version": "0.2.0",
+  "description": "Guardarraíles de seguridad para Claude Code: bloqueo de secretos en Write/Edit y en commits, hooks en Python, arquitectura modular obligatoria e instalación no destructiva sobre proyectos existentes.",
+  "license": "MIT",
+  "keywords": ["security", "secrets", "governance", "pre-commit", "gitleaks", "claude-code"],
+  "homepage": "https://github.com/ccicode/claude-guardrails",
+  "repository": "https://github.com/ccicode/claude-guardrails"
+}
