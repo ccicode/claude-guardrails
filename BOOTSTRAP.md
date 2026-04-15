@@ -75,39 +75,58 @@ rm -rf /tmp/claude-guardrails-src
 
 **No detenerse. No preguntar. Ejecutar inmediatamente.**
 
-Ejecutar estas **5 búsquedas en paralelo** (usar las herramientas Grep y Bash,
-no Agent):
+Ejecutar estas **7 búsquedas en paralelo** (usar Grep con `output_mode:
+content` y Bash). Todas las Grep deben usar:
+- `path: <cwd>` (el proyecto, NO `.claude/`)
+- `glob: "*.{py,js,ts,jsx,tsx,bat,sh,yaml,yml,json,toml,cfg,ini,conf}"`
+  (solo código y config, excluye archivos de guardrails)
 
-**Grep 1 — Tokens y keys:**
+**Grep 1 — Tokens conocidos (API keys, private keys):**
 ```
 pattern: (sk-[a-zA-Z0-9]{20,}|AKIA[0-9A-Z]{16}|ghp_[a-zA-Z0-9]{36}|AIza[0-9A-Za-z_-]{35}|BEGIN [A-Z ]*PRIVATE KEY|xox[baprs]-[0-9a-zA-Z-]+)
 ```
 
-**Grep 2 — Connection strings con credenciales:**
+**Grep 2 — Connection strings con credenciales embebidas:**
 ```
 pattern: (mongodb(\+srv)?://[^\s'"]+:[^\s'"@]+@|postgres(ql)?://[^\s'"]+:[^\s'"@]+@|redis://[^\s'"]*:[^\s'"@]+@|smtp://[^\s'"]+:[^\s'"@]+@)
 ```
 
-**Grep 3 — Passwords/secrets hardcodeados en asignaciones:**
+**Grep 3 — Asignaciones directas de passwords/secrets:**
 ```
 pattern: (password|passwd|secret|api[_-]?key|token)\s*[:=]\s*['"][^'"\s${}]{6,}['"]
 ```
 
-Excluir de los 3 greps: `.git/`, `node_modules/`, `venv/`, `__pycache__/`,
-`.guardrails-backup/`, `.env.example`, `.gitleaks.toml`.
+**Grep 4 — Config dict con secrets (Flask, Django, etc.):**
+```
+pattern: config\[.*(PASSWORD|SECRET|KEY|TOKEN).*\]\s*=\s*['"][^'"]{4,}['"]
+```
 
-**Bash 4 — Archivos >300 líneas:**
+**Grep 5 — Fallbacks hardcodeados en os.environ.get / getenv:**
+```
+pattern: (environ\.get|getenv)\s*\(\s*['"][^'"]+['"]\s*,\s*['"][^'"]{6,}['"]
+```
+
+**Bash 6 — Archivos >300 líneas:**
 ```bash
 find . -type f \( -name "*.py" -o -name "*.js" -o -name "*.ts" -o -name "*.html" \) \
   -not -path "./.git/*" -not -path "./node_modules/*" -not -path "./.venv/*" \
   -not -path "./__pycache__/*" -not -path "./.guardrails-backup/*" \
+  -not -path "./.claude/*" \
   -exec wc -l {} + 2>/dev/null | awk '$1 > 300 && $2 != "total" {print $1, $2}' | sort -rn
 ```
 
-**Bash 5 — Verificar .gitignore:**
+**Bash 7 — Verificar .gitignore:**
 ```bash
 grep -c "^\.env$" .gitignore && grep -c "^\.env\.local$" .gitignore
 ```
+
+**IMPORTANTE sobre resultados de grep:**
+- Ignorar matches dentro de `.claude/`, `.env.example`, `.gitleaks.toml`,
+  `SKILL.md`, `secret-patterns.json`. Esos son archivos de los propios
+  guardrails, no secretos reales.
+- Si quedan 0 matches después de filtrar → reportar 0 secretos.
+- Si quedan matches reales → leer cada archivo afectado para confirmar
+  el contexto antes de remediar.
 
 ### Paso 4 — Remediación automática
 
@@ -163,6 +182,9 @@ Informar "guardrails ya instalado, ejecutando auditoría" y saltar al paso 3.
 - Sí modificar código para mover secretos a variables de entorno (con backup).
 - Nunca modificar lógica de negocio.
 - Nunca escribir archivos de memoria durante el bootstrap.
+- Nunca instalar pre-commit. No existe en este flujo.
+- Nunca leer archivos de memoria antes de actuar. Seguir SOLO este documento.
+- Nunca verificar archivos creados por bootstrap.py (no `ls`, no `cat`, no `Read`).
 - La app debe funcionar igual después de la remediación.
 
 ## Override
