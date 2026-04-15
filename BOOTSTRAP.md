@@ -7,56 +7,57 @@
 # Instrucciones para Claude Code — Aprovisionar con `claude-guardrails`
 
 Si estás leyendo esto, el usuario solicitó aplicar `claude-guardrails`. Ejecuta
-el instalador **sin improvisar** y sin escribir código a mano.
+el instalador **sin improvisar**, sin escribir código a mano, y **sin hacer
+preguntas innecesarias**. La solicitud del usuario ya es la confirmación. Tu
+trabajo es detectar el modo correcto, ejecutar y reportar.
 
-## Paso 0 — Elegir el modo
+## Detección automática de modo
 
-Preguntar al usuario una sola vez:
+**No preguntar.** Determinar el modo con esta lógica:
 
-> **¿Modo de instalación?**
->
-> - **Proyecto** (recomendado): los guardarraíles viven dentro del repositorio
->   actual (`.claude/`, `.gitignore`, `.pre-commit-config.yaml`, etc.). Se
->   commitean y se aplican también al resto del equipo.
-> - **Personal**: los guardarraíles viven en tu `~/.claude/` y se aplican a
->   todos los proyectos que abras en tu máquina. No tocan el repositorio ni al
->   equipo.
-
-Si el usuario elige **personal**, usar `--personal` en el comando del paso 4 y
-omitir los pasos 5 (pre-commit) y la verificación de `git init`.
+1. Si el usuario escribió explícitamente "personal" o `--personal` → modo
+   **personal**.
+2. Si el `cwd` es `$HOME` o `~` → modo **personal**.
+3. En cualquier otro caso → modo **proyecto**.
 
 ## Procedimiento
 
+Ejecutar los pasos en orden. **No detenerse a pedir confirmación entre pasos.**
+
 ### 1. Obtener el repositorio
 
-Clona el repositorio a una carpeta temporal:
+Si el `cwd` ya es el propio repo `claude-guardrails`, usarlo como `--source`
+directamente y saltar el clone.
+
+De lo contrario, clonar a una carpeta temporal:
 
 ```bash
 git clone --depth=1 https://github.com/ccicode/claude-guardrails.git /tmp/claude-guardrails-src
 ```
 
-Si ya está disponible localmente en otra ruta, usa esa ruta como `--source` en
-lugar de clonar.
-
 ### 2. Identificar el proyecto objetivo
 
-El objetivo es el `cwd` — el proyecto que el usuario tiene abierto. Confirma con
-`pwd`. Si el `cwd` resulta ser la carpeta del propio plugin clonado, detente y
-pregunta cuál es el proyecto real.
+El objetivo es el `cwd` del usuario. Verificar con `pwd`.
 
-Si el objetivo no tiene directorio `.git/`, pregunta una sola vez:
-**"El proyecto no está inicializado con Git. ¿Ejecuto `git init`?"**. Si la
-respuesta es afirmativa, ejecútalo; si no, continúa (se omitirá la instalación
-de `pre-commit`).
+- Si el `cwd` es la carpeta del propio plugin clonado **y** el usuario no
+  indicó otro proyecto, detenerse y preguntar cuál es el proyecto real. Esta es
+  la **única pregunta permitida** en todo el flujo.
+- Si el objetivo no tiene `.git/`, continuar sin instalar `pre-commit`. Anotar
+  un `WARN` en el reporte final. **No preguntar si ejecutar `git init`.**
 
-### 3. Dry-run
+### 3. Ejecutar bootstrap (apply directo)
+
+Ejecutar `bootstrap.py` con `--apply --yes` directamente. El script genera
+backups automáticos en `.guardrails-backup/<YYYYMMDD-HHMMSS>/` antes de
+modificar cualquier archivo, por lo que no se necesita un dry-run previo.
 
 **Modo proyecto:**
 
 ```bash
 python /tmp/claude-guardrails-src/scripts/bootstrap.py \
   --source /tmp/claude-guardrails-src \
-  --target "$(pwd)"
+  --target "$(pwd)" \
+  --apply --yes
 ```
 
 **Modo personal:**
@@ -64,40 +65,34 @@ python /tmp/claude-guardrails-src/scripts/bootstrap.py \
 ```bash
 python /tmp/claude-guardrails-src/scripts/bootstrap.py \
   --source /tmp/claude-guardrails-src \
-  --personal
+  --personal \
+  --apply --yes
 ```
 
-Muestra al usuario el output completo y pregunta: **"¿Aplico estos cambios?"**.
+> En Windows, si `python` no está en PATH, probar `py -3`.
 
-### 4. Apply
+### 4. Instalar pre-commit
 
-Con aprobación explícita, agregar `--apply --yes` al comando anterior.
-
-**Modo proyecto** respalda en `.guardrails-backup/<YYYYMMDD-HHMMSS>/` los
-archivos que modifica.
-
-**Modo personal** escribe en `~/.claude/` y deja los comandos de hook con
-ruta absoluta (necesario para que funcionen desde cualquier proyecto).
-
-### 5. Instalar pre-commit
-
-Solo en **modo proyecto**. En modo personal omitir este paso.
+Solo en **modo proyecto** y solo si el proyecto tiene `.git/`.
 
 ```bash
-python -m pip install --user pre-commit
-pre-commit install
+python -m pip install --user pre-commit 2>&1 || true
+pre-commit install 2>&1 || true
 ```
 
-Si alguno de los dos pasos falla, emite un `WARN` no fatal; el usuario puede
-reintentar después.
+Si falla, anotar un `WARN` no fatal en el reporte. **No detenerse.**
 
-### 6. Limpieza
+### 5. Limpieza
 
 ```bash
 rm -rf /tmp/claude-guardrails-src
 ```
 
-### 7. Reporte final
+Omitir si se usó el repo local como source.
+
+### 6. Reporte final
+
+Mostrar el output del bootstrap.py y complementar con:
 
 **Modo proyecto:**
 
@@ -134,18 +129,28 @@ Próximos pasos:
 
 - **Nunca** escribas los templates a mano en el proyecto objetivo. Siempre vía
   `bootstrap.py`.
-- **Nunca** ejecutes `--apply` sin mostrar primero el dry-run y recibir
-  confirmación explícita.
 - **Nunca** elimines archivos del proyecto objetivo. El bootstrap solo crea o
   fusiona.
 - **Nunca** modifiques código productivo (`*.py`, `*.js`, `pyproject.toml`,
   `package.json`, etc.). Los secretos detectados solo se reportan.
+- **Nunca** preguntes por confirmación. La solicitud del usuario es la
+  confirmación. Los backups automáticos en `.guardrails-backup/` garantizan
+  reversibilidad.
+- La **única pregunta permitida** es cuando el `cwd` es el propio repo
+  clonado de `claude-guardrails` y no queda claro cuál es el proyecto destino.
+
+## Override interactivo
+
+Si el usuario dice explícitamente "paso a paso", "preguntando", o
+"con confirmación", entonces sí detenerse antes de aplicar y mostrar el
+dry-run (ejecutar sin `--apply`). Este es el único caso donde se permite
+el flujo interactivo.
 
 ## Errores comunes
 
 | Síntoma | Causa probable | Acción |
 |---|---|---|
-| `python no encontrado` | Python no está en `PATH`. | Solicita instalar Python 3.10+ y reintentar. En Windows, probar `py -3`. |
+| `python no encontrado` | Python no está en `PATH`. | Intentar `py -3`. Si tampoco funciona, informar al usuario que necesita Python 3.10+. |
 | `git clone falló` | Credenciales o URL errada. | Verificar acceso a la red o la URL del repositorio. |
 | `JSON inválido` en `bootstrap.py` | El proyecto ya tenía `.claude/settings.json` con JSON roto. | Abrirlo, reparar la sintaxis y reintentar. |
 | Usuario quiere revertir | — | Copiar los archivos de `.guardrails-backup/<timestamp>/` sobre su ubicación original. Los archivos creados desde cero se eliminan manualmente. |
