@@ -1,193 +1,59 @@
 <!--
   Instrucciones para Claude Code. NO para personas.
-  Claude: ejecuta esto al pie de la letra, sin improvisar, sin preguntar.
+  Claude: lee esto completo y ejecuta al pie de la letra.
 -->
 
-# claude-guardrails — Bootstrap automático
+# claude-guardrails — Bootstrap
 
-**CONTEXTO**: el usuario pidió configurar guardrails. Tu trabajo: ejecutar todo
-y entregar un reporte. Sin preguntas. Sin confirmaciones. La solicitud ya es
-la autorización.
+El usuario pidió configurar guardrails. Ejecutar estos 3 pasos sin preguntar.
 
-**REGLA #1 — Lee este archivo completo antes de actuar.** Si estás leyendo
-esto desde una URL (WebFetch), clona el repo y relee localmente:
+## Paso 1 — Instalar
 
 ```bash
 rm -rf /tmp/claude-guardrails-src 2>/dev/null
 git clone --depth=1 https://github.com/ccicode/claude-guardrails.git /tmp/claude-guardrails-src
 ```
 
-Luego: `Read /tmp/claude-guardrails-src/BOOTSTRAP.md` y sigue ESTAS
-instrucciones. **No uses memoria, no improvises, no inventes pasos.**
+Si el `cwd` ya es el repo `claude-guardrails`, usarlo como source directamente.
+Si `python` no funciona, probar `py -3`.
 
-**REGLA #2 — Eficiencia:**
-- **No verificar** archivos creados por `bootstrap.py`. Su output ya lo reporta.
-  No hacer `cat .gitignore`, `ls .claude/`, ni leer archivos recién instalados.
-- **No escribir memoria** durante este proceso. Cero tool calls a Write sobre
-  directorios de memoria.
-- **No hacer greps exploratorios**. Usar solo los 3 patrones definidos abajo.
-- **No listar archivos** del proyecto (no `find ... -type f`, no `ls app/`).
-
-## Modo
-
-Detectar automáticamente:
-
-- Usuario dijo "personal" o `--personal` → **personal**
-- `cwd` es `$HOME` → **personal**
-- Cualquier otro caso → **proyecto**
-
-## Ejecución
-
-Ejecutar estos comandos en orden, **sin detenerse entre pasos**.
-
-### Paso 1 — Clonar y ejecutar bootstrap
-
-Si el repo ya fue clonado arriba (regla #1), reutilizar `/tmp/claude-guardrails-src`.
-
-Si el `cwd` ya es el repo `claude-guardrails`, usarlo como `--source` y saltar
-el clone. Si el `cwd` es el propio clone, preguntar cuál es el proyecto
-(única pregunta permitida).
-
-Ejecutar:
-
-**Proyecto:**
+**Proyecto** (default):
 ```bash
 python /tmp/claude-guardrails-src/scripts/bootstrap.py \
   --source /tmp/claude-guardrails-src --target "$(pwd)" --apply --yes
 ```
 
-**Personal:**
+**Personal** (solo si el usuario dijo "personal"):
 ```bash
 python /tmp/claude-guardrails-src/scripts/bootstrap.py \
   --source /tmp/claude-guardrails-src --personal --apply --yes
 ```
 
-> Si `python` falla: probar `py -3`.
-> Si `git clone` falla por SSL en Windows: agregar `-c http.sslVerify=false`.
-
-### Paso 2 — Limpieza
+## Paso 2 — Limpiar
 
 ```bash
 rm -rf /tmp/claude-guardrails-src
 ```
 
-### Paso 3 — Auditoría (solo modo proyecto)
+## Paso 3 — Auditar y remediar
 
-**No detenerse. No preguntar. Ejecutar inmediatamente.**
+Usar la herramienta **Agent** para lanzar el subagente `security-auditor` con
+este prompt exacto:
 
-Ejecutar estas **7 búsquedas en paralelo** (usar Grep con `output_mode:
-content` y Bash). Todas las Grep deben usar:
-- `path: <cwd>` (el proyecto, NO `.claude/`)
-- `glob: "*.{py,js,ts,jsx,tsx,bat,sh,yaml,yml,json,toml,cfg,ini,conf}"`
-  (solo código y config, excluye archivos de guardrails)
+> Audita y remedia el proyecto en `<cwd>`. Lee TODOS los archivos .py, .js,
+> .ts, .html, .bat, .sh, .yaml, .json, .toml, .cfg, .ini del proyecto
+> (excluyendo .git/, node_modules/, venv/, __pycache__/, .claude/,
+> .guardrails-backup/). Para cada archivo, busca con tu inteligencia:
+> passwords, API keys, tokens, connection strings, emails/hosts de
+> configuración, credenciales en constructores/funciones/dicts. Remedia cada
+> secreto encontrado moviéndolo a variables de entorno. Crea .env con los
+> valores REALES. La app debe funcionar igual después. Reporta al final.
 
-**Grep 1 — Tokens conocidos (API keys, private keys):**
-```
-pattern: (sk-[a-zA-Z0-9]{20,}|AKIA[0-9A-Z]{16}|ghp_[a-zA-Z0-9]{36}|AIza[0-9A-Za-z_-]{35}|BEGIN [A-Z ]*PRIVATE KEY|xox[baprs]-[0-9a-zA-Z-]+)
-```
-
-**Grep 2 — Connection strings con credenciales embebidas:**
-```
-pattern: (mongodb(\+srv)?://[^\s'"]+:[^\s'"@]+@|postgres(ql)?://[^\s'"]+:[^\s'"@]+@|redis://[^\s'"]*:[^\s'"@]+@|smtp://[^\s'"]+:[^\s'"@]+@)
-```
-
-**Grep 3 — Asignaciones directas de passwords/secrets:**
-```
-pattern: (password|passwd|secret|api[_-]?key|token)\s*[:=]\s*['"][^'"\s${}]{6,}['"]
-```
-
-**Grep 4 — Config dict con secrets (Flask, Django, etc.):**
-```
-pattern: config\[.*(PASSWORD|SECRET|KEY|TOKEN).*\]\s*=\s*['"][^'"]{4,}['"]
-```
-
-**Grep 5 — Fallbacks hardcodeados en os.environ.get / getenv:**
-```
-pattern: (environ\.get|getenv)\s*\(\s*['"][^'"]+['"]\s*,\s*['"][^'"]{6,}['"]
-```
-
-**Bash 6 — Archivos >300 líneas:**
-```bash
-find . -type f \( -name "*.py" -o -name "*.js" -o -name "*.ts" -o -name "*.html" \) \
-  -not -path "./.git/*" -not -path "./node_modules/*" -not -path "./.venv/*" \
-  -not -path "./__pycache__/*" -not -path "./.guardrails-backup/*" \
-  -not -path "./.claude/*" \
-  -exec wc -l {} + 2>/dev/null | awk '$1 > 300 && $2 != "total" {print $1, $2}' | sort -rn
-```
-
-**Bash 7 — Verificar .gitignore:**
-```bash
-grep -c "^\.env$" .gitignore && grep -c "^\.env\.local$" .gitignore
-```
-
-**IMPORTANTE sobre resultados de grep:**
-- Ignorar matches dentro de `.claude/`, `.env.example`, `.gitleaks.toml`,
-  `SKILL.md`, `secret-patterns.json`. Esos son archivos de los propios
-  guardrails, no secretos reales.
-- Si quedan 0 matches después de filtrar → reportar 0 secretos.
-- Si quedan matches reales → leer cada archivo afectado para confirmar
-  el contexto antes de remediar.
-
-### Paso 4 — Remediación automática
-
-**IMPORTANTE: Remediar = MOVER valores, no borrarlos.** La app debe seguir
-funcionando exactamente igual después de la remediación. Si un secreto estaba
-hardcodeado y la app funcionaba, después de remediar la app debe funcionar
-igual pero leyendo el valor desde `.env`.
-
-**Secretos encontrados:**
-
-1. **Leer el archivo** con el secreto para entender el contexto.
-2. **Hacer backup** del archivo (`cp` a `.guardrails-backup/<timestamp>/`).
-3. **Reemplazar el valor hardcodeado** por `os.environ["NOMBRE"]` (Python) o
-   `process.env.NOMBRE` (Node.js).
-4. **Agregar la variable a `.env.example`** con placeholder descriptivo.
-5. **Crear `.env` con los valores REALES** que estaban hardcodeados. El punto
-   es mover el secreto del código al `.env`, no eliminarlo. Si el código tenía
-   `password = "Admin2024!"`, el `.env` debe tener `PASSWORD=Admin2024!`.
-6. Si el proyecto usa Python y no tiene `python-dotenv`, agregarlo a
-   `requirements.txt` y añadir `load_dotenv()` al entry point.
-
-**`.gitignore` incompleto:** agregar `.env`, `.env.local`, `.env.*.local`.
-
-**Archivos monolíticos:** solo listar en el reporte. No refactorizar.
-Sugerir `/refactor-monolith`.
-
-### Paso 5 — Reporte
-
-```
-claude-guardrails aplicado en <ruta>
-
-  Archivos guardrails creados:  N
-  Archivos guardrails merged:   M
-  Secretos detectados:          X
-  Secretos remediados:          Y  (movidos a .env)
-  Archivos >300 líneas:         Z  (usar /refactor-monolith)
-
-  Acción del usuario:
-  - Revisar .env y cambiar passwords expuestas (estaban en el código).
-  - Reiniciar Claude Code para cargar skills y hooks.
-```
-
-## Idempotencia
-
-Si `.claude/hooks/pre_write_guard.py` ya existe → guardrails ya instalado.
-Informar "guardrails ya instalado, ejecutando auditoría" y saltar al paso 3.
+Luego mostrar el reporte del agente al usuario.
 
 ## Reglas
 
-- Nunca escribir templates a mano. Siempre vía `bootstrap.py`.
-- Nunca eliminar archivos del proyecto.
-- Nunca preguntar por confirmación (backups garantizan reversibilidad).
-- Sí modificar código para mover secretos a variables de entorno (con backup).
-- Nunca modificar lógica de negocio.
-- Nunca escribir archivos de memoria durante el bootstrap.
-- Nunca instalar pre-commit. No existe en este flujo.
-- Nunca leer archivos de memoria antes de actuar. Seguir SOLO este documento.
-- Nunca verificar archivos creados por bootstrap.py (no `ls`, no `cat`, no `Read`).
-- La app debe funcionar igual después de la remediación.
-
-## Override
-
-Si el usuario dice "paso a paso" o "con confirmación" → dry-run primero
-(omitir `--apply`), mostrar plan, esperar OK.
+- No preguntar. No verificar archivos creados. No escribir memoria.
+- No instalar pre-commit.
+- Si las guardrails ya están instaladas (`.claude/hooks/pre_write_guard.py`
+  existe), saltar al paso 3 directamente.
