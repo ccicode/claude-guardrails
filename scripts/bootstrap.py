@@ -46,7 +46,6 @@ CLAUDE_MD_MARKER = "## Reglas de guardrails"
 TEMPLATE_PATHS: dict[str, str] = {
     ".gitignore":               "templates/gitignore",
     ".env.example":             "templates/env.example",
-    ".pre-commit-config.yaml":  "templates/pre-commit-config.yaml",
     ".gitleaks.toml":           "templates/gitleaks.toml",
     ".claude/CLAUDE.md":        "templates/.claude/CLAUDE.md",
     ".claude/settings.json":    "templates/.claude/settings.json",
@@ -373,87 +372,6 @@ def plan_env_example(ctx: BootstrapContext) -> None:
     ctx.plan.append(PlanEntry(
         action="MERGE", rel_path=rel,
         detail=f"+{len(added_keys)} variables ({', '.join(added_keys[:3])}{'...' if len(added_keys) > 3 else ''})",
-        writer=writer, needs_backup=True,
-    ))
-
-
-# ---------------------------------------------------------------------------
-# .pre-commit-config.yaml merge (textual)
-# ---------------------------------------------------------------------------
-
-_REPO_LINE_RE = re.compile(r"^(\s*)-\s*repo:\s*(\S+)\s*$")
-
-
-def _split_repo_blocks(text: str) -> tuple[str, list[tuple[str, str]]]:
-    """Split into (preamble_before_first_repo, [(url, block_text), ...]).
-
-    Each block_text starts at its "- repo:" line and ends right before the next
-    repo line (or EOF).
-    """
-    lines = text.splitlines(keepends=True)
-    first_idx = None
-    repo_lines: list[tuple[int, str]] = []
-    for i, line in enumerate(lines):
-        m = _REPO_LINE_RE.match(line)
-        if m:
-            if first_idx is None:
-                first_idx = i
-            repo_lines.append((i, m.group(2)))
-    if first_idx is None:
-        return text, []
-    preamble = "".join(lines[:first_idx])
-    blocks: list[tuple[str, str]] = []
-    for idx, (line_idx, url) in enumerate(repo_lines):
-        end = repo_lines[idx + 1][0] if idx + 1 < len(repo_lines) else len(lines)
-        blocks.append((url, "".join(lines[line_idx:end])))
-    return preamble, blocks
-
-
-def plan_precommit(ctx: BootstrapContext) -> None:
-    rel = ".pre-commit-config.yaml"
-    src = src_path_for(ctx.source, rel)
-    tgt = ctx.target / rel
-    if not src.exists():
-        return
-
-    src_text = read_text_safe(src) or ""
-    if not tgt.exists():
-        ctx.plan.append(PlanEntry(
-            action="CREATE", rel_path=rel,
-            writer=lambda: write_text(tgt, src_text),
-        ))
-        return
-
-    tgt_text = read_text_safe(tgt) or ""
-    if "repos:" not in tgt_text:
-        log_warn(ctx, f"{rel}: no se reconoce estructura 'repos:', se respeta el archivo")
-        ctx.plan.append(PlanEntry(action="SKIP", rel_path=rel,
-                                  detail="target invalido o sin 'repos:'"))
-        return
-
-    _, src_blocks = _split_repo_blocks(src_text)
-    _, tgt_blocks = _split_repo_blocks(tgt_text)
-    tgt_urls = {url for url, _ in tgt_blocks}
-
-    to_add = [(url, block) for url, block in src_blocks if url not in tgt_urls]
-    if not to_add:
-        ctx.plan.append(PlanEntry(action="SKIP", rel_path=rel,
-                                  detail="todos los repos ya presentes"))
-        return
-
-    def writer() -> None:
-        backup_file(ctx, rel)
-        sep = "" if tgt_text.endswith("\n") else "\n"
-        marker = f"\n  # --- agregado por guardrails ({dt.date.today().isoformat()}) ---\n"
-        appended = marker + "".join(b for _, b in to_add)
-        new = tgt_text + sep + appended
-        if not new.endswith("\n"):
-            new += "\n"
-        write_text(tgt, new)
-
-    ctx.plan.append(PlanEntry(
-        action="MERGE", rel_path=rel,
-        detail=f"+{len(to_add)} repos",
         writer=writer, needs_backup=True,
     ))
 
@@ -931,9 +849,9 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
                    help="Salta el escaneo de secretos.")
     p.add_argument("--personal", action="store_true",
                    help="Instalación personal: escribe en ~/.claude/ en vez del "
-                        "proyecto. No toca .gitignore, .env.example ni "
-                        ".pre-commit-config.yaml. Los hooks quedan con ruta "
-                        "absoluta para funcionar desde cualquier proyecto.")
+                        "proyecto. No toca .gitignore ni .env.example. "
+                        "Los hooks quedan con ruta absoluta para funcionar "
+                        "desde cualquier proyecto.")
     return p.parse_args(argv)
 
 
@@ -963,7 +881,6 @@ def build_plan(ctx: BootstrapContext) -> None:
         # tocamos el repositorio del usuario.
         plan_gitignore(ctx)
         plan_env_example(ctx)
-        plan_precommit(ctx)
         plan_gitleaks(ctx)
     plan_claude_md(ctx)
     plan_settings_json(ctx)

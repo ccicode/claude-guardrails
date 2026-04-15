@@ -17,9 +17,7 @@
     "allow": [
       "Bash(git status:*)",
       "Bash(git diff:*)",
-      "Bash(git add:*)",
-      "Bash(pre-commit run:*)",
-      "Bash(pre-commit install:*)"
+      "Bash(git add:*)"
     ]
   },
   "hooks": {
